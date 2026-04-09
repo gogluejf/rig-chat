@@ -1,0 +1,35 @@
+package app
+
+// Mode represents the current UI mode
+type Mode int
+
+const (
+	ModeChat          Mode = iota // Default: textarea focused
+	ModeStreaming                  // Inference active, input disabled
+	ModeCommand                    // Slash command palette
+	ModeModelPicker               // Model selection
+	ModeHelp                       // Help overlay
+	ModeFilePicker                 // File path completion for /image, /system
+	ModeSessionPicker              // Session list for /load
+)
+
+func (m Mode) String() string {
+	switch m {
+	case ModeChat:
+		return "chat"
+	case ModeStreaming:
+		return "streaming"
+	case ModeCommand:
+		return "command"
+	case ModeModelPicker:
+		return "model-picker"
+	case ModeHelp:
+		return "help"
+	case ModeFilePicker:
+		return "file-picker"
+	case ModeSessionPicker:
+		return "session-picker"
+	default:
+		return "unknown"
+	}
+}

@@ -1,0 +1,264 @@
+package chat
+
+import (
+	"bufio"
+	"bytes"
+	"context"
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"strings"
+	"time"
+)
+
+// StreamEvent is sent for each SSE chunk during inference
+type StreamEvent struct {
+	Text       string  // visible delta text
+	Thinking   string  // thinking delta text
+	InThinking bool    // currently inside think block
+	Done       bool    // stream finished
+	StopReason string  // from the final chunk
+	Error      error   // non-nil on error
+}
+
+// ChatMessage is an OpenAI-compatible message for the API request
+type ChatMessage struct {
+	Role    string      `json:"role"`
+	Content interface{} `json:"content"` // string or []ContentPart
+}
+
+// ContentPart for multimodal messages
+type ContentPart struct {
+	Type     string    `json:"type"`
+	Text     string    `json:"text,omitempty"`
+	ImageURL *ImageURL `json:"image_url,omitempty"`
+}
+
+// ImageURL for image content parts
+type ImageURL struct {
+	URL string `json:"url"`
+}
+
+// chatRequest is the OpenAI-compatible request body
+type chatRequest struct {
+	Model              string            `json:"model"`
+	Stream             bool              `json:"stream"`
+	Messages           []ChatMessage     `json:"messages"`
+	ChatTemplateKwargs map[string]interface{} `json:"chat_template_kwargs,omitempty"`
+}
+
+// sseChoice is the delta within a streaming response chunk
+type sseChoice struct {
+	Delta struct {
+		Content string `json:"content"`
+	} `json:"delta"`
+	FinishReason *string `json:"finish_reason"`
+}
+
+// sseResponse is a single SSE data payload
+type sseResponse struct {
+	Choices []sseChoice `json:"choices"`
+}
+
+// Engine manages chat inference against an OpenAI-compatible endpoint
+type Engine struct {
+	ChatURL  string
+	Model    string
+	Thinking bool
+	client   *http.Client
+}
+
+func NewEngine(chatURL, model string, thinking bool) *Engine {
+	return &Engine{
+		ChatURL:  chatURL,
+		Model:    model,
+		Thinking: thinking,
+		client: &http.Client{
+			Timeout: 0, // no timeout for streaming
+		},
+	}
+}
+
+// Stream sends the chat request and returns a channel of StreamEvents.
+// Cancel via the context. The channel is closed when done.
+func (e *Engine) Stream(ctx context.Context, messages []ChatMessage) <-chan StreamEvent {
+	ch := make(chan StreamEvent, 64)
+
+	go func() {
+		defer close(ch)
+
+		reqBody := chatRequest{
+			Model:    e.Model,
+			Stream:   true,
+			Messages: messages,
+		}
+		if e.Thinking {
+			reqBody.ChatTemplateKwargs = map[string]interface{}{
+				"enable_thinking": true,
+			}
+		}
+
+		body, err := json.Marshal(reqBody)
+		if err != nil {
+			ch <- StreamEvent{Error: fmt.Errorf("marshal request: %w", err)}
+			return
+		}
+
+		req, err := http.NewRequestWithContext(ctx, "POST", e.ChatURL, bytes.NewReader(body))
+		if err != nil {
+			ch <- StreamEvent{Error: fmt.Errorf("create request: %w", err)}
+			return
+		}
+		req.Header.Set("Content-Type", "application/json")
+
+		resp, err := e.client.Do(req)
+		if err != nil {
+			if ctx.Err() != nil {
+				ch <- StreamEvent{Done: true}
+				return
+			}
+			ch <- StreamEvent{Error: fmt.Errorf("request failed: %w", err)}
+			return
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusOK {
+			ch <- StreamEvent{Error: fmt.Errorf("API returned %d", resp.StatusCode)}
+			return
+		}
+
+		parser := &ThinkParser{}
+		// Qwen quirk: when thinking enabled but hidden, model may emit
+		// reasoning before any <think> open tag
+		if e.Thinking {
+			parser.InThink = true
+		}
+
+		scanner := bufio.NewScanner(resp.Body)
+		// Increase buffer for large chunks
+		scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
+
+		for scanner.Scan() {
+			if ctx.Err() != nil {
+				ch <- StreamEvent{Done: true}
+				return
+			}
+
+			line := scanner.Text()
+			if !strings.HasPrefix(line, "data: ") && !strings.HasPrefix(line, "data:") {
+				continue
+			}
+
+			payload := strings.TrimPrefix(line, "data: ")
+			payload = strings.TrimPrefix(payload, "data:")
+			payload = strings.TrimSpace(payload)
+
+			if payload == "[DONE]" {
+				// Flush any remaining buffered content
+				result := parser.Flush()
+				if result.Text != "" || result.Thinking != "" {
+					ch <- StreamEvent{
+						Text:       result.Text,
+						Thinking:   result.Thinking,
+						InThinking: parser.InThink,
+					}
+				}
+				ch <- StreamEvent{Done: true}
+				return
+			}
+
+			var sse sseResponse
+			if err := json.Unmarshal([]byte(payload), &sse); err != nil {
+				continue
+			}
+
+			if len(sse.Choices) == 0 {
+				continue
+			}
+
+			choice := sse.Choices[0]
+			content := choice.Delta.Content
+			if content == "" {
+				// Check for finish reason even without content
+				if choice.FinishReason != nil {
+					result := parser.Flush()
+					if result.Text != "" || result.Thinking != "" {
+						ch <- StreamEvent{
+							Text:       result.Text,
+							Thinking:   result.Thinking,
+							InThinking: parser.InThink,
+						}
+					}
+					ch <- StreamEvent{Done: true, StopReason: *choice.FinishReason}
+					return
+				}
+				continue
+			}
+
+			result := parser.Process(content)
+			if result.Text != "" || result.Thinking != "" {
+				ch <- StreamEvent{
+					Text:       result.Text,
+					Thinking:   result.Thinking,
+					InThinking: parser.InThink,
+				}
+			}
+		}
+
+		if err := scanner.Err(); err != nil {
+			if ctx.Err() != nil {
+				ch <- StreamEvent{Done: true}
+				return
+			}
+			ch <- StreamEvent{Error: fmt.Errorf("read stream: %w", err)}
+			return
+		}
+
+		// Stream ended without [DONE]
+		result := parser.Flush()
+		if result.Text != "" || result.Thinking != "" {
+			ch <- StreamEvent{
+				Text:       result.Text,
+				Thinking:   result.Thinking,
+				InThinking: parser.InThink,
+			}
+		}
+		ch <- StreamEvent{Done: true}
+	}()
+
+	return ch
+}
+
+// FetchModels queries /v1/models endpoint and returns model IDs
+func FetchModels(ctx context.Context, modelsURL string) ([]string, error) {
+	client := &http.Client{Timeout: 10 * time.Second}
+	req, err := http.NewRequestWithContext(ctx, "GET", modelsURL, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("models endpoint returned %d", resp.StatusCode)
+	}
+
+	var result struct {
+		Data []struct {
+			ID string `json:"id"`
+		} `json:"data"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, err
+	}
+
+	models := make([]string, 0, len(result.Data))
+	for _, m := range result.Data {
+		models = append(models, m.ID)
+	}
+	return models, nil
+}
