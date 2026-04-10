@@ -4,12 +4,12 @@ import "time"
 
 // Settings persisted to settings.json
 type Settings struct {
-	Provider        string `json:"provider"`
-	Model           string `json:"model"`
-	Thinking        bool   `json:"thinking"`
+	Provider         string `json:"provider"`
+	Model            string `json:"model"`
+	Thinking         bool   `json:"thinking"`
 	SystemPromptFile string `json:"system_prompt_file"`
-	MaxHistory      int    `json:"max_history"`
-	LastSessionName string `json:"last_session_name"`
+	MaxHistory       int    `json:"max_history"`
+	LastSessionName  string `json:"last_session_name"`
 }
 
 // ProviderConfig from endpoints.json
@@ -31,8 +31,8 @@ type History struct {
 
 // SessionFile is the full *.chat.json
 type SessionFile struct {
-	Version  int      `json:"version"`
-	Session  Session  `json:"session"`
+	Version  int       `json:"version"`
+	Session  Session   `json:"session"`
 	Messages []Message `json:"messages"`
 }
 
@@ -66,30 +66,4 @@ type Message struct {
 type DisplayMessage struct {
 	Message
 	ThinkingExpanded bool
-}
-
-func DefaultSettings() Settings {
-	return Settings{
-		Provider:   "vllm",
-		Model:      "",
-		Thinking:   false,
-		MaxHistory: 500,
-	}
-}
-
-func DefaultEndpoints() EndpointsConfig {
-	return EndpointsConfig{
-		Providers: []ProviderConfig{
-			{
-				Name:      "vllm",
-				ChatURL:   "http://localhost/v1/chat/completions",
-				ModelsURL: "http://localhost/v1/models",
-			},
-			{
-				Name:      "ollama",
-				ChatURL:   "http://localhost/ollama/v1/chat/completions",
-				ModelsURL: "http://localhost/ollama/v1/models",
-			},
-		},
-	}
 }

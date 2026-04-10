@@ -31,6 +31,6 @@ func (p Paths) EnsureDirs() error {
 	return nil
 }
 
-func (p Paths) SettingsFile() string   { return filepath.Join(p.Root, "settings.json") }
-func (p Paths) EndpointsFile() string  { return filepath.Join(p.Root, "endpoints.json") }
-func (p Paths) HistoryFile() string    { return filepath.Join(p.Root, "history.json") }
+func (p Paths) SettingsFile() string  { return filepath.Join(p.Root, "settings.json") }
+func (p Paths) EndpointsFile() string { return filepath.Join(p.Root, "endpoints.json") }
+func (p Paths) HistoryFile() string   { return filepath.Join(p.Root, "history.json") }
