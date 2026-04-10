@@ -2,7 +2,6 @@ package ui
 
 import (
 	"fmt"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -67,45 +66,47 @@ func RenderMessage(msg config.DisplayMessage, width int, thinkingExpanded bool) 
 }
 
 func renderHeader(msg config.DisplayMessage, width int) string {
-	date := msg.CreatedAt.Format("15:04:05")
+	dim := AssistantHeaderDimStyle
+	att := AssistantHeaderAttStyle
+	lineStyle := AssistantHeaderStyle
+	if msg.Role == "user" {
+		dim = UserHeaderDimStyle
+		att = UserHeaderAttStyle
+		lineStyle = UserHeaderStyle
+	}
+	inner := width - 2 // Padding(0,1) is outer, inner content area = width-2
+
+	leftStr := dim.Render(msg.CreatedAt.Format("15:04:05"))
 
 	var right []string
 	if msg.ImagePath != "" {
-		right = append(right, filepath.Base(msg.ImagePath))
+		right = append(right, att.Render(msg.ImagePath))
 	}
 	if msg.Role == "user" {
-		// User messages: show input token estimate only.
 		if msg.InputTokens > 0 {
-			right = append(right, fmt.Sprintf("%d tokens", msg.InputTokens))
+			right = append(right, dim.Render(fmt.Sprintf("%d tokens", msg.InputTokens)))
 		}
 	} else {
-		// Assistant messages: tok/s → response time → output tokens.
 		if msg.TokensPerSecond > 0 {
-			right = append(right, fmt.Sprintf("%.1f tok/s", msg.TokensPerSecond))
+			right = append(right, dim.Render(fmt.Sprintf("%.1f tok/s", msg.TokensPerSecond)))
 		}
 		if msg.ResponseTimeMs > 0 {
-			right = append(right, formatDuration(msg.ResponseTimeMs))
+			right = append(right, dim.Render(formatDuration(msg.ResponseTimeMs)))
 		}
 		if msg.OutputTokens > 0 {
-			right = append(right, fmt.Sprintf("%d tokens", msg.OutputTokens))
+			right = append(right, dim.Render(fmt.Sprintf("%d tokens", msg.OutputTokens)))
 		}
 	}
 
-	rightStr := strings.Join(right, "  ")
-	leftStr := date
-
-	gap := width - lipgloss.Width(leftStr) - lipgloss.Width(rightStr) - 2
+	rightStr := strings.Join(right, dim.Render("  "))
+	gap := inner - lipgloss.Width(leftStr) - lipgloss.Width(rightStr)
 	if gap < 1 {
 		gap = 1
 	}
 
-	header := leftStr + strings.Repeat(" ", gap) + rightStr
-	style := AssistantHeaderStyle
-	if msg.Role == "user" {
-		style = UserHeaderStyle
-	}
-
-	return style.Width(width).Render("\n" + header + "\n")
+	return lineStyle.Width(width).Render(
+		"\n" + leftStr + dim.Render(strings.Repeat(" ", gap)) + rightStr + "\n",
+	)
 }
 
 // RenderStreamingMessage renders the in-progress streaming message.

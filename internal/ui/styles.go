@@ -33,10 +33,29 @@ var (
 			Foreground(lipgloss.Color("245")).
 			Padding(0, 1)
 
+	// Inline styles for user header content — must carry the same background
+	// so embedded ANSI resets don't punch holes in the header row.
+	UserHeaderDimStyle = lipgloss.NewStyle().
+				Background(lipgloss.Color("236")).
+				Foreground(lipgloss.Color("245"))
+
+	UserHeaderAttStyle = lipgloss.NewStyle().
+				Background(lipgloss.Color("236")).
+				Foreground(lipgloss.Color("214"))
+
 	AssistantHeaderStyle = lipgloss.NewStyle().
 				Background(lipgloss.Color("233")).
 				Foreground(lipgloss.Color("245")).
 				Padding(0, 1)
+
+	// Inline styles for assistant header content.
+	AssistantHeaderDimStyle = lipgloss.NewStyle().
+					Background(lipgloss.Color("233")).
+					Foreground(lipgloss.Color("245"))
+
+	AssistantHeaderAttStyle = lipgloss.NewStyle().
+					Background(lipgloss.Color("233")).
+					Foreground(lipgloss.Color("214"))
 
 	TopHeaderStyle = lipgloss.NewStyle().
 			Background(lipgloss.Color("235")).
