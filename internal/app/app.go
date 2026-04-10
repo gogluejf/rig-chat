@@ -169,7 +169,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m *Model) recalcLayout() {
 	inputHeight := 6
-	footerHeight := 1
+	headerHeight := 1
+	footerHeight := 2
 	overlayHeight := 0
 
 	switch m.mode {
@@ -184,7 +185,7 @@ func (m *Model) recalcLayout() {
 	if m.attachedImage != "" {
 		attachHeight = 1
 	}
-	vpHeight := m.height - inputHeight - footerHeight - attachHeight - overlayHeight
+	vpHeight := m.height - inputHeight - headerHeight - footerHeight - attachHeight - overlayHeight
 	if vpHeight < 3 {
 		vpHeight = 3
 	}
@@ -634,11 +635,12 @@ func (m Model) handleStreamEvent(event chat.StreamEvent) (tea.Model, tea.Cmd) {
 			Message: config.Message{
 				ID:              fmt.Sprintf("msg_%d", len(m.messages)+1),
 				Role:            "assistant",
-				CreatedAt:       time.Now(),
+				CreatedAt:       m.streamStart,
 				Text:            m.streamText,
 				ThinkingText:    m.streamThinking,
 				OutputTokens:    m.tokenCount,
 				TokensPerSecond: m.calcTokPerSec(),
+				ResponseTimeMs:  time.Since(m.streamStart).Milliseconds(),
 				StopReason:      event.StopReason,
 			},
 		}
@@ -684,6 +686,7 @@ func (m *Model) updateViewportContent() {
 			m.streamThinking,
 			m.inThinking,
 			m.width,
+			m.streamStart,
 		))
 	}
 
@@ -706,6 +709,7 @@ func (m Model) View() string {
 	}
 
 	var sections []string
+	sections = append(sections, ui.TopHeaderStyle.Width(m.width).Render("rig-chat v0.1"))
 
 	// Viewport (messages)
 	sections = append(sections, m.viewport.View())

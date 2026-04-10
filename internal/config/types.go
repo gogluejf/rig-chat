@@ -59,6 +59,7 @@ type Message struct {
 	InputTokens     int       `json:"input_tokens"`
 	OutputTokens    int       `json:"output_tokens"`
 	TokensPerSecond float64   `json:"tokens_per_second,omitempty"`
+	ResponseTimeMs  int64     `json:"response_time_ms,omitempty"`
 	StopReason      string    `json:"stop_reason,omitempty"`
 }
 

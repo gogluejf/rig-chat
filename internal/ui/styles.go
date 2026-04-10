@@ -26,7 +26,22 @@ var (
 
 	// Message header (dim line with date, tokens, etc.)
 	MsgHeaderStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("240")). // dim
+			Foreground(lipgloss.Color("240"))
+
+	UserHeaderStyle = lipgloss.NewStyle().
+			Background(lipgloss.Color("236")).
+			Foreground(lipgloss.Color("245")).
+			Padding(0, 1)
+
+	AssistantHeaderStyle = lipgloss.NewStyle().
+				Background(lipgloss.Color("233")).
+				Foreground(lipgloss.Color("245")).
+				Padding(0, 1)
+
+	TopHeaderStyle = lipgloss.NewStyle().
+			Background(lipgloss.Color("235")).
+			Foreground(lipgloss.Color("245")).
+			Bold(true).
 			Padding(0, 1)
 
 	// Footer bar
