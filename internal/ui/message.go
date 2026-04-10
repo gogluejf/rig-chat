@@ -9,30 +9,18 @@ import (
 	"rig-chat/internal/config"
 )
 
-const (
-	assistantLeftInset = 2
-	userLeftInset      = 6
-)
-
 // RenderMessage renders a single chat message for the viewport
 func RenderMessage(msg config.DisplayMessage, width int, thinkingExpanded bool) string {
 	var b strings.Builder
-	b.WriteString("\n")
 
-	inset := assistantLeftInset
-	if msg.Role == "user" {
-		inset = userLeftInset
-	}
-	prefix := strings.Repeat(" ", inset)
-
-	bubbleWidth := width - inset
+	// Left-margin concept removed (requested): use full available width.
+	bubbleWidth := width
 	if bubbleWidth < 20 {
 		bubbleWidth = 20
 	}
 
 	// Header line: date left, metadata right
 	header := renderHeader(msg, bubbleWidth)
-	b.WriteString(prefix)
 	b.WriteString(header)
 	b.WriteString("\n")
 
@@ -42,7 +30,7 @@ func RenderMessage(msg config.DisplayMessage, width int, thinkingExpanded bool) 
 		style = UserMsgStyle
 	}
 
-	bodyWidth := bubbleWidth - 2 // padding
+	bodyWidth := bubbleWidth
 	if bodyWidth < 20 {
 		bodyWidth = 20
 	}
@@ -56,29 +44,24 @@ func RenderMessage(msg config.DisplayMessage, width int, thinkingExpanded bool) 
 	// Keep plain text rendering in chat bubbles to preserve consistent
 	// full-width backgrounds. ANSI sequences from markdown rendering can
 	// reset terminal background mid-line and create visual striping.
-
-	b.WriteString(prefix)
-	b.WriteString(style.Render(body))
+	b.WriteString(style.Render("\n" + body + "\n"))
 
 	// Thinking block (collapsed/expanded)
 	if msg.ThinkingText != "" {
 		b.WriteString("\n")
 		if thinkingExpanded {
 			thinkStyle := ThinkingStyle.Width(bodyWidth)
-			b.WriteString(prefix)
 			b.WriteString(ThinkingLabelStyle.Render("  thinking"))
 			b.WriteString("\n")
-			b.WriteString(prefix)
 			b.WriteString(thinkStyle.Render(msg.ThinkingText))
 		} else {
 			lines := strings.Count(msg.ThinkingText, "\n") + 1
 			label := fmt.Sprintf("  thinking (%d lines, ctrl+e to expand)", lines)
-			b.WriteString(prefix)
 			b.WriteString(ThinkingLabelStyle.Render(label))
 		}
 	}
 
-	b.WriteString("\n")
+	// One trailing spacer line after each message block.
 	b.WriteString("\n")
 	return b.String()
 }
@@ -114,51 +97,47 @@ func renderHeader(msg config.DisplayMessage, width int) string {
 	if msg.Role == "user" {
 		style = UserHeaderStyle
 	}
-	return style.Width(width).Render(header)
+
+	return style.Width(width).Render("\n" + header)
 }
 
 // RenderStreamingMessage renders the in-progress streaming message
 func RenderStreamingMessage(text, thinkingText string, inThinking bool, width int, createdAt time.Time) string {
 	var b strings.Builder
-	b.WriteString("\n")
 
-	prefix := strings.Repeat(" ", assistantLeftInset)
-	bubbleWidth := width - assistantLeftInset
+
+	bubbleWidth := width
 	if bubbleWidth < 20 {
 		bubbleWidth = 20
 	}
 
-	bodyWidth := bubbleWidth - 2
+	bodyWidth := bubbleWidth
 	if bodyWidth < 20 {
 		bodyWidth = 20
 	}
 
 	streamHeader := renderStreamingHeader(createdAt, bubbleWidth)
-	b.WriteString(prefix)
 	b.WriteString(streamHeader)
 	b.WriteString("\n")
 
 	if inThinking && text == "" {
 		// Still in thinking phase, show spinner
-		b.WriteString(prefix)
 		b.WriteString(ThinkingLabelStyle.Render("  thinking..."))
 		b.WriteString("\n")
 	}
 
 	if text != "" {
 		style := AssistantMsgStyle.Width(bodyWidth)
-		b.WriteString(prefix)
-		b.WriteString(style.Render(text))
+		b.WriteString(style.Render("\n" + text + "\n"))
 		b.WriteString("\n")
 	}
-
-	b.WriteString("\n")
 	return b.String()
 }
 
 func renderStreamingHeader(createdAt time.Time, width int) string {
 	leftStr := createdAt.Format("15:04:05")
-	return AssistantHeaderStyle.Width(width).Render(leftStr)
+	
+	return AssistantHeaderStyle.Width(width).Render("\n" + leftStr)
 }
 
 func formatDuration(ms int64) string {

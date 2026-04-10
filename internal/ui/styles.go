@@ -59,6 +59,10 @@ var (
 			Background(lipgloss.Color("235")).
 			Foreground(lipgloss.Color("240"))
 
+	FooterValueStyle = lipgloss.NewStyle().
+			Background(lipgloss.Color("235")).
+			Foreground(lipgloss.Color("252"))
+
 	// Code blocks
 	CodeBlockStyle = lipgloss.NewStyle().
 			Background(lipgloss.Color("234")).

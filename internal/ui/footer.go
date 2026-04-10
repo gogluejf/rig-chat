@@ -45,12 +45,18 @@ func RenderFooter(data FooterData, width int) string {
 			parts = append(parts, FooterKeyStyle.Render("ctrl+e")+FooterDimStyle.Render(" thinking"))
 		}
 		left = strings.Join(parts, "  ")
+
+		// While streaming, keep model visible and render the live token count in white
+		// right before the model label.
+		rightLine1 = FooterValueStyle.Render(fmt.Sprintf("%.1f  tok/s", data.TokPerSec)) + " " + FooterDimStyle.Render(data.Model)
+		rightLine2 = ""
 		if data.TokPerSec > 0 {
-			rightLine1 = FooterDimStyle.Render(fmt.Sprintf("%.1f tok/s", data.TokPerSec))
-			rightWidth = lipgloss.Width(rightLine1)
-			if w2 := lipgloss.Width(rightLine2); w2 > rightWidth {
-				rightWidth = w2
-			}
+			rightLine2 = FooterDimStyle.Render(fmt.Sprintf("%d tokens", data.TotalTokens))
+		}
+
+		rightWidth = lipgloss.Width(rightLine1)
+		if w2 := lipgloss.Width(rightLine2); w2 > rightWidth {
+			rightWidth = w2
 		}
 	} else {
 		left = FooterKeyStyle.Render("/") + FooterDimStyle.Render("cmd") + "  " +
