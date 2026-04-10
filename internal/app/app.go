@@ -47,8 +47,8 @@ type Model struct {
 
 	// Chat state
 	messages       []config.DisplayMessage
-	streamText     strings.Builder
-	streamThinking strings.Builder
+	streamText     string
+	streamThinking string
 	inThinking     bool
 	streaming      bool
 	cancelFn       context.CancelFunc
@@ -292,8 +292,8 @@ func (m Model) handleStreamingKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.streaming = false
 		m.mode = ModeChat
 		m.textarea.Focus()
-		m.streamText.Reset()
-		m.streamThinking.Reset()
+		m.streamText = ""
+		m.streamThinking = ""
 		m.updateViewportContent()
 		return m, nil
 
@@ -591,8 +591,8 @@ func (m Model) sendMessage() (tea.Model, tea.Cmd) {
 
 	m.streaming = true
 	m.mode = ModeStreaming
-	m.streamText.Reset()
-	m.streamThinking.Reset()
+	m.streamText = ""
+	m.streamThinking = ""
 	m.inThinking = false
 	m.tokenCount = 0
 	m.streamStart = time.Now()
@@ -635,8 +635,8 @@ func (m Model) handleStreamEvent(event chat.StreamEvent) (tea.Model, tea.Cmd) {
 				ID:              fmt.Sprintf("msg_%d", len(m.messages)+1),
 				Role:            "assistant",
 				CreatedAt:       time.Now(),
-				Text:            m.streamText.String(),
-				ThinkingText:    m.streamThinking.String(),
+				Text:            m.streamText,
+				ThinkingText:    m.streamThinking,
 				OutputTokens:    m.tokenCount,
 				TokensPerSecond: m.calcTokPerSec(),
 				StopReason:      event.StopReason,
@@ -653,14 +653,14 @@ func (m Model) handleStreamEvent(event chat.StreamEvent) (tea.Model, tea.Cmd) {
 	}
 
 	if event.Text != "" {
-		m.streamText.WriteString(event.Text)
+		m.streamText += event.Text
 		m.tokenCount += countTokensApprox(event.Text)
 		if m.firstTokenTime.IsZero() {
 			m.firstTokenTime = time.Now()
 		}
 	}
 	if event.Thinking != "" {
-		m.streamThinking.WriteString(event.Thinking)
+		m.streamThinking += event.Thinking
 		m.tokenCount += countTokensApprox(event.Thinking)
 		if m.firstTokenTime.IsZero() {
 			m.firstTokenTime = time.Now()
@@ -680,8 +680,8 @@ func (m *Model) updateViewportContent() {
 
 	if m.streaming {
 		b.WriteString(ui.RenderStreamingMessage(
-			m.streamText.String(),
-			m.streamThinking.String(),
+			m.streamText,
+			m.streamThinking,
 			m.inThinking,
 			m.width,
 		))
