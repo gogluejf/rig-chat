@@ -22,7 +22,6 @@ func RenderMessage(msg config.DisplayMessage, width int, thinkingExpanded bool) 
 	// Header line: date left, metadata right
 	header := renderHeader(msg, bubbleWidth)
 	b.WriteString(header)
-	b.WriteString("\n")
 
 	// Message body
 	style := AssistantMsgStyle
@@ -98,7 +97,7 @@ func renderHeader(msg config.DisplayMessage, width int) string {
 		style = UserHeaderStyle
 	}
 
-	return style.Width(width).Render("\n" + header)
+	return style.Width(width).Render("\n" + header + "\n")
 }
 
 // RenderStreamingMessage renders the in-progress streaming message
@@ -128,7 +127,7 @@ func RenderStreamingMessage(text, thinkingText string, inThinking bool, width in
 
 	if text != "" {
 		style := AssistantMsgStyle.Width(bodyWidth)
-		b.WriteString(style.Render("\n" + text + "\n"))
+		b.WriteString(style.Render(text + "\n"))
 		b.WriteString("\n")
 	}
 	return b.String()
@@ -137,7 +136,7 @@ func RenderStreamingMessage(text, thinkingText string, inThinking bool, width in
 func renderStreamingHeader(createdAt time.Time, width int) string {
 	leftStr := createdAt.Format("15:04:05")
 	
-	return AssistantHeaderStyle.Width(width).Render("\n" + leftStr)
+	return AssistantHeaderStyle.Width(width).Render("\n" + leftStr + "\n")
 }
 
 func formatDuration(ms int64) string {

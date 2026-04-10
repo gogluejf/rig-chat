@@ -155,6 +155,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		ids := chat.ModelIDs(msg.models)
 		m.modelPicker = ui.NewPickerList("Select Model", ids)
 		m.mode = ModeModelPicker
+		m.recalcLayout()
 		return m, nil
 	}
 
@@ -168,17 +169,20 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m *Model) recalcLayout() {
-	inputHeight := 6
-	headerHeight := 1
-	footerHeight := 2
-	overlayHeight := 0
+	const inputHeight = 6
+	const headerHeight = 1
+	const footerHeight = 2
 
+	overlayHeight := 0
 	switch m.mode {
 	case ModeCommand:
-		overlayHeight = len(m.cmdPalette.FilteredItems()) + 1
-		if overlayHeight > 10 {
-			overlayHeight = 10
-		}
+		overlayHeight = m.cmdPalette.RenderHeight()
+	case ModeModelPicker:
+		overlayHeight = m.modelPicker.RenderHeight()
+	case ModeSessionPicker:
+		overlayHeight = m.sessionPicker.RenderHeight()
+	case ModeFilePicker:
+		overlayHeight = m.filePicker.RenderHeight()
 	}
 
 	attachHeight := 0
@@ -347,6 +351,7 @@ func (m Model) handlePickerKey(msg tea.KeyMsg, pickerType string) (tea.Model, te
 	case key.Matches(msg, keys.Escape), key.Matches(msg, keys.Cancel):
 		m.mode = ModeChat
 		m.textarea.Focus()
+		(&m).recalcLayout()
 		return m, nil
 
 	case key.Matches(msg, keys.Up):
@@ -414,6 +419,7 @@ func (m Model) handlePickerKey(msg tea.KeyMsg, pickerType string) (tea.Model, te
 				m.filePicker.Selected = 0
 			}
 		}
+		(&m).recalcLayout()
 		return m, nil
 	}
 }
@@ -474,6 +480,7 @@ func (m Model) confirmPicker(pickerType string) (tea.Model, tea.Cmd) {
 
 	m.mode = ModeChat
 	m.textarea.Focus()
+	(&m).recalcLayout()
 	return m, nil
 }
 
@@ -508,6 +515,7 @@ func (m Model) executeCommand(name string) (tea.Model, tea.Cmd) {
 		m.filePicker = ui.NewPickerList("Attach Image (type path)", []string{})
 		m.filePickerFor = "image"
 		m.mode = ModeFilePicker
+		(&m).recalcLayout()
 		return m, nil
 
 	case "save":
@@ -521,6 +529,7 @@ func (m Model) executeCommand(name string) (tea.Model, tea.Cmd) {
 		m.filePicker = ui.NewPickerList("System Prompt", prompts)
 		m.filePickerFor = "system"
 		m.mode = ModeFilePicker
+		(&m).recalcLayout()
 		return m, nil
 	}
 
@@ -550,6 +559,7 @@ func (m Model) startLoad() (Model, tea.Cmd) {
 	sessions := config.ListSessions(m.paths)
 	m.sessionPicker = ui.NewPickerList("Load Session", sessions)
 	m.mode = ModeSessionPicker
+	(&m).recalcLayout()
 	return m, nil
 }
 
@@ -626,6 +636,7 @@ func (m Model) handleStreamEvent(event chat.StreamEvent) (tea.Model, tea.Cmd) {
 		m.streaming = false
 		m.mode = ModeChat
 		m.textarea.Focus()
+		m.recalcLayout()
 		m.updateViewportContent()
 		return m, nil
 	}
@@ -650,6 +661,7 @@ func (m Model) handleStreamEvent(event chat.StreamEvent) (tea.Model, tea.Cmd) {
 		m.streaming = false
 		m.mode = ModeChat
 		m.textarea.Focus()
+		m.recalcLayout()
 		m.updateViewportContent()
 		return m, nil
 	}

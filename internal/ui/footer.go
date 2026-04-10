@@ -7,17 +7,6 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-func padRight(s string, width int) string {
-	if width <= 0 {
-		return s
-	}
-	gap := width - lipgloss.Width(s)
-	if gap <= 0 {
-		return s
-	}
-	return s + strings.Repeat(" ", gap)
-}
-
 // FooterData holds dynamic footer information
 type FooterData struct {
 	Model       string
@@ -27,16 +16,28 @@ type FooterData struct {
 	InThinking  bool
 }
 
-// RenderFooter renders the fixed footer bar
+// RenderFooter renders the fixed 2-line footer bar, always exactly `width` chars wide.
+// Each line is rendered independently with an explicit full-width gray background so
+// there are no uncoloured gaps anywhere on the bar.
 func RenderFooter(data FooterData, width int) string {
-	var left string
-	rightLine1 := FooterDimStyle.Render(data.Model)
-	rightLine2 := FooterDimStyle.Render(fmt.Sprintf("%d tokens", data.TotalTokens))
-	rightWidth := lipgloss.Width(rightLine1)
-	if w2 := lipgloss.Width(rightLine2); w2 > rightWidth {
-		rightWidth = w2
+	// lineStyle produces a full-width gray block — applied per line so the background
+	// is guaranteed to cover the entire terminal width even around already-styled text.
+	lineStyle := lipgloss.NewStyle().
+		Background(lipgloss.Color("235")).
+		Width(width)
+
+	// bgSpace returns n spaces that carry the footer background colour.
+	// Using FooterDimStyle (which sets bg=235) instead of plain strings prevents
+	// "holes" in the background where unstyled spaces would otherwise appear.
+	bgSpace := func(n int) string {
+		if n <= 0 {
+			return ""
+		}
+		return FooterDimStyle.Render(strings.Repeat(" ", n))
 	}
 
+	// ── Line 1: command hints (left) + model info (right) ────────────────
+	var left, right1 string
 	if data.Streaming {
 		parts := []string{
 			FooterKeyStyle.Render("ctrl+c") + FooterDimStyle.Render(" cancel"),
@@ -44,31 +45,29 @@ func RenderFooter(data FooterData, width int) string {
 		if data.InThinking {
 			parts = append(parts, FooterKeyStyle.Render("ctrl+e")+FooterDimStyle.Render(" thinking"))
 		}
-		left = strings.Join(parts, "  ")
-
-		// While streaming, keep model visible and render the live token count in white
-		// right before the model label.
-		rightLine1 = FooterValueStyle.Render(fmt.Sprintf("%.1f  tok/s", data.TokPerSec)) + " " + FooterDimStyle.Render(data.Model)
-		rightLine2 = ""
-		if data.TokPerSec > 0 {
-			rightLine2 = FooterDimStyle.Render(fmt.Sprintf("%d tokens", data.TotalTokens))
-		}
-
-		rightWidth = lipgloss.Width(rightLine1)
-		if w2 := lipgloss.Width(rightLine2); w2 > rightWidth {
-			rightWidth = w2
-		}
+		left = strings.Join(parts, FooterDimStyle.Render("  "))
+		right1 = FooterValueStyle.Render(fmt.Sprintf("%.1f tok/s", data.TokPerSec)) +
+			FooterDimStyle.Render("  "+data.Model)
 	} else {
-		left = FooterKeyStyle.Render("/") + FooterDimStyle.Render("cmd") + "  " +
+		left = FooterKeyStyle.Render("/") + FooterDimStyle.Render("cmd") +
+			FooterDimStyle.Render("  ") +
 			FooterKeyStyle.Render("ctrl+h") + FooterDimStyle.Render(" help")
+		right1 = FooterDimStyle.Render(data.Model)
 	}
 
-	gap := width - lipgloss.Width(left) - rightWidth - 2
-	if gap < 1 {
-		gap = 1
+	gap1 := width - lipgloss.Width(left) - lipgloss.Width(right1)
+	if gap1 < 1 {
+		gap1 = 1
 	}
+	line1 := lineStyle.Render(left + bgSpace(gap1) + right1)
 
-	line1 := padRight(left+strings.Repeat(" ", gap)+rightLine1, width)
-	line2 := padRight(strings.Repeat(" ", lipgloss.Width(left)+gap)+rightLine2, width)
-	return FooterStyle.Width(width).Render(line1 + "\n" + line2)
+	// ── Line 2: token count, right-aligned ───────────────────────────────
+	right2 := FooterDimStyle.Render(fmt.Sprintf("%d tokens", data.TotalTokens))
+	prefix2 := width - lipgloss.Width(right2)
+	if prefix2 < 0 {
+		prefix2 = 0
+	}
+	line2 := lineStyle.Render(bgSpace(prefix2) + right2)
+
+	return line1 + "\n" + line2
 }

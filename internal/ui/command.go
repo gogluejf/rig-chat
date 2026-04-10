@@ -84,11 +84,33 @@ func (cp *CommandPalette) Reset() {
 	cp.Visible = false
 }
 
+// maxCmdItems is the maximum number of command palette rows ever rendered.
+const maxCmdItems = 10
+
+// RenderHeight returns the exact number of terminal lines that Render() will output.
+func (cp *CommandPalette) RenderHeight() int {
+	n := len(cp.FilteredItems())
+	if n == 0 {
+		return 1 // "No matching commands" line
+	}
+	if n > maxCmdItems {
+		n = maxCmdItems
+	}
+	return n
+}
+
 // Render renders the command palette
 func (cp *CommandPalette) Render(width int) string {
 	items := cp.FilteredItems()
 	if len(items) == 0 {
-		return CommandDescStyle.Render("  No matching commands")
+		return lipgloss.NewStyle().
+			Background(lipgloss.Color("235")).
+			Width(width).
+			Render(CommandDescStyle.Render("  No matching commands"))
+	}
+	// Cap rendered items to match RenderHeight.
+	if len(items) > maxCmdItems {
+		items = items[:maxCmdItems]
 	}
 
 	var b strings.Builder
@@ -163,6 +185,28 @@ func (pl *PickerList) SelectedItem() string {
 	return ""
 }
 
+// maxPickerItems is the maximum number of list rows ever rendered (excluding heading/filter).
+const maxPickerItems = 15
+
+// RenderHeight returns the exact number of terminal lines that Render() will output.
+func (pl *PickerList) RenderHeight() int {
+	h := 1 // heading line
+	if pl.Filter != "" {
+		h++ // filter hint line
+	}
+	items := pl.FilteredItems()
+	if len(items) == 0 {
+		h++ // "No matches" line
+	} else {
+		count := len(items)
+		if count > maxPickerItems {
+			count = maxPickerItems
+		}
+		h += count
+	}
+	return h
+}
+
 func (pl *PickerList) Render(width int) string {
 	items := pl.FilteredItems()
 
@@ -174,16 +218,19 @@ func (pl *PickerList) Render(width int) string {
 	}
 
 	if len(items) == 0 {
-		b.WriteString(CommandDescStyle.Render("  No matches") + "\n")
-		return b.String()
+		b.WriteString(CommandDescStyle.Render("  No matches"))
+		return lipgloss.NewStyle().
+			Background(lipgloss.Color("235")).
+			Width(width).
+			Render(strings.TrimRight(b.String(), "\n"))
 	}
 
-	// Show max 15 items around selection
+	// Show max maxPickerItems items around selection (must match RenderHeight).
 	start := pl.Selected - 7
 	if start < 0 {
 		start = 0
 	}
-	end := start + 15
+	end := start + maxPickerItems
 	if end > len(items) {
 		end = len(items)
 	}
