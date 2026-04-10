@@ -99,40 +99,45 @@ func (cp *CommandPalette) RenderHeight() int {
 	return n
 }
 
+// palette background colours
+const paletteBg = lipgloss.Color("235")
+const paletteSelectedBg = lipgloss.Color("237")
+
 // Render renders the command palette
 func (cp *CommandPalette) Render(width int) string {
 	items := cp.FilteredItems()
 	if len(items) == 0 {
 		return lipgloss.NewStyle().
-			Background(lipgloss.Color("235")).
+			Background(paletteBg).
 			Width(width).
-			Render(CommandDescStyle.Render("  No matching commands"))
+			Render(lipgloss.NewStyle().Background(paletteBg).Foreground(lipgloss.Color("243")).Render("  No matching commands"))
 	}
 	// Cap rendered items to match RenderHeight.
 	if len(items) > maxCmdItems {
 		items = items[:maxCmdItems]
 	}
 
-	var b strings.Builder
-	for i, item := range items {
-		name := "/" + item.Name
-		desc := item.Description
+	// Inline styles that carry the background so ANSI resets don't punch holes.
+	normalNameStyle := lipgloss.NewStyle().Background(paletteBg).Foreground(lipgloss.Color("110")).Bold(true)
+	normalDescStyle := lipgloss.NewStyle().Background(paletteBg).Foreground(lipgloss.Color("243"))
+	normalRowStyle := lipgloss.NewStyle().Background(paletteBg).Width(width)
 
+	selNameStyle := lipgloss.NewStyle().Background(paletteSelectedBg).Foreground(lipgloss.Color("252")).Bold(true)
+	selDescStyle := lipgloss.NewStyle().Background(paletteSelectedBg).Foreground(lipgloss.Color("243"))
+	selRowStyle := lipgloss.NewStyle().Background(paletteSelectedBg).Width(width)
+
+	var rows []string
+	for i, item := range items {
+		name := "  /" + item.Name
+		desc := "  " + item.Description
 		if i == cp.Selected {
-			line := CommandSelectedStyle.Width(width).Render("  " + name + "  " + desc)
-			b.WriteString(line)
+			rows = append(rows, selRowStyle.Render(selNameStyle.Render(name)+selDescStyle.Render(desc)))
 		} else {
-			nameStr := CommandStyle.Render("  " + name)
-			descStr := CommandDescStyle.Render("  " + desc)
-			b.WriteString(nameStr + descStr)
+			rows = append(rows, normalRowStyle.Render(normalNameStyle.Render(name)+normalDescStyle.Render(desc)))
 		}
-		b.WriteString("\n")
 	}
 
-	return lipgloss.NewStyle().
-		Background(lipgloss.Color("235")).
-		Width(width).
-		Render(strings.TrimRight(b.String(), "\n"))
+	return strings.Join(rows, "\n")
 }
 
 // PickerList is a generic filtered list for model picker, session picker, etc.

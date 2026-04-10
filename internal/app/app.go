@@ -45,7 +45,6 @@ type Model struct {
 
 	// Command palette
 	cmdPalette ui.CommandPalette
-	cmdInput   string // text after / in command mode
 
 	// Pickers
 	modelPicker    ui.PickerList
@@ -191,15 +190,17 @@ func (m *Model) recalcLayout() {
 	const footerHeight = 2
 
 	overlayHeight := 0
-	switch m.mode {
-	case ModeCommand:
+	if m.cmdPalette.Visible {
 		overlayHeight = m.cmdPalette.RenderHeight()
-	case ModeModelPicker:
-		overlayHeight = m.modelPicker.RenderHeight()
-	case ModeSessionPicker:
-		overlayHeight = m.sessionPicker.RenderHeight()
-	case ModeFilePicker:
-		overlayHeight = m.filePicker.RenderHeight()
+	} else {
+		switch m.mode {
+		case ModeModelPicker:
+			overlayHeight = m.modelPicker.RenderHeight()
+		case ModeSessionPicker:
+			overlayHeight = m.sessionPicker.RenderHeight()
+		case ModeFilePicker:
+			overlayHeight = m.filePicker.RenderHeight()
+		}
 	}
 
 	attachHeight := 0
@@ -231,9 +232,6 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 
-	case ModeCommand:
-		return m.handleCommandKey(msg)
-
 	case ModeModelPicker:
 		return m.handlePickerKey(msg, "model")
 
@@ -253,6 +251,13 @@ func (m Model) handleChatKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		_ = config.SaveHistory(m.paths, m.history)
 		return m, tea.Quit
 
+	case key.Matches(msg, keys.Escape):
+		if m.cmdPalette.Visible {
+			m.cmdPalette.Visible = false
+			m.recalcLayout()
+		}
+		return m, nil
+
 	case key.Matches(msg, keys.Help):
 		m.mode = ModeHelp
 		return m, nil
@@ -269,32 +274,52 @@ func (m Model) handleChatKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.startLoad()
 
 	case key.Matches(msg, keys.Send):
+		if m.cmdPalette.Visible && m.cmdPalette.SelectedCommand() != "" {
+			return m.executeCommand(m.cmdPalette.SelectedCommand())
+		}
 		return m.sendMessage()
 
 	case key.Matches(msg, keys.Up):
+		if m.cmdPalette.Visible {
+			m.cmdPalette.MoveUp()
+			return m, nil
+		}
 		return m.historyUp()
 
 	case key.Matches(msg, keys.Down):
+		if m.cmdPalette.Visible {
+			m.cmdPalette.MoveDown()
+			return m, nil
+		}
 		return m.historyDown()
 
 	default:
 		var cmd tea.Cmd
 		m.textarea, cmd = m.textarea.Update(msg)
-
-		// Check for slash command trigger: "/" as the only content
-		val := m.textarea.Value()
-		if val == "/" {
-			m.textarea.SetValue("")
-			m.cmdPalette = ui.NewCommandPalette()
-			m.cmdPalette.Visible = true
-			m.cmdInput = ""
-			m.mode = ModeCommand
-			m.recalcLayout()
-			return m, nil
-		}
-
+		m.updateCommandPalette()
 		return m, cmd
 	}
+}
+
+// updateCommandPalette re-evaluates whether the command palette should be
+// shown based on the current textarea content.
+func (m *Model) updateCommandPalette() {
+	val := m.textarea.Value()
+	if strings.HasPrefix(val, "/") {
+		filter := val[1:]
+		if filter != m.cmdPalette.Filter {
+			m.cmdPalette.Filter = filter
+			m.cmdPalette.Selected = 0
+		}
+		if len(m.cmdPalette.FilteredItems()) > 0 {
+			m.cmdPalette.Visible = true
+		} else {
+			m.cmdPalette.Visible = false
+		}
+	} else {
+		m.cmdPalette.Visible = false
+	}
+	m.recalcLayout()
 }
 
 func (m Model) handleStreamingKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
@@ -327,42 +352,6 @@ func (m Model) handleStreamingKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m Model) handleCommandKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	switch {
-	case key.Matches(msg, keys.Escape), key.Matches(msg, keys.Cancel):
-		m.cmdPalette.Reset()
-		m.mode = ModeChat
-		m.textarea.Focus()
-		m.recalcLayout()
-		return m, nil
-
-	case key.Matches(msg, keys.Up):
-		m.cmdPalette.MoveUp()
-		return m, nil
-
-	case key.Matches(msg, keys.Down):
-		m.cmdPalette.MoveDown()
-		return m, nil
-
-	case key.Matches(msg, keys.Send):
-		return m.executeCommand(m.cmdPalette.SelectedCommand())
-
-	default:
-		// Type to filter
-		s := msg.String()
-		if len(s) == 1 {
-			m.cmdInput += s
-			m.cmdPalette.Filter = m.cmdInput
-			m.cmdPalette.Selected = 0
-		} else if s == "backspace" && len(m.cmdInput) > 0 {
-			m.cmdInput = m.cmdInput[:len(m.cmdInput)-1]
-			m.cmdPalette.Filter = m.cmdInput
-			m.cmdPalette.Selected = 0
-		}
-		m.recalcLayout()
-		return m, nil
-	}
-}
 
 func (m Model) handlePickerKey(msg tea.KeyMsg, pickerType string) (tea.Model, tea.Cmd) {
 	switch {
@@ -504,6 +493,7 @@ func (m Model) confirmPicker(pickerType string) (tea.Model, tea.Cmd) {
 
 func (m Model) executeCommand(name string) (tea.Model, tea.Cmd) {
 	m.cmdPalette.Reset()
+	m.textarea.SetValue("")
 
 	switch name {
 	case "exit":
@@ -749,15 +739,17 @@ func (m Model) View() string {
 	sections = append(sections, m.viewport.View())
 
 	// Command palette overlay (between viewport and input)
-	switch m.mode {
-	case ModeCommand:
+	if m.cmdPalette.Visible {
 		sections = append(sections, m.cmdPalette.Render(m.width))
-	case ModeModelPicker:
-		sections = append(sections, m.modelPicker.Render(m.width))
-	case ModeSessionPicker:
-		sections = append(sections, m.sessionPicker.Render(m.width))
-	case ModeFilePicker:
-		sections = append(sections, m.filePicker.Render(m.width))
+	} else {
+		switch m.mode {
+		case ModeModelPicker:
+			sections = append(sections, m.modelPicker.Render(m.width))
+		case ModeSessionPicker:
+			sections = append(sections, m.sessionPicker.Render(m.width))
+		case ModeFilePicker:
+			sections = append(sections, m.filePicker.Render(m.width))
+		}
 	}
 
 	// Attachment chip

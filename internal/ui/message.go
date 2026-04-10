@@ -37,7 +37,7 @@ func RenderMessage(msg config.DisplayMessage, width int, thinkingExpanded bool) 
 
 	body := msg.Text
 	if body == "" && msg.Role == "assistant" {
-		body = "..."
+		body = "(cancelled by user)"
 	}
 
 	// Keep plain text rendering in chat bubbles to preserve consistent
