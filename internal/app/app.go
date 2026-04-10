@@ -20,6 +20,16 @@ import (
 // streamEventMsg wraps a StreamEvent for the Bubble Tea message loop
 type streamEventMsg chat.StreamEvent
 
+// streamTickMsg fires periodically while streaming to keep the live timer
+// in the message header animated even when no tokens are arriving yet.
+type streamTickMsg struct{}
+
+func streamTickCmd() tea.Cmd {
+	return tea.Tick(20*time.Millisecond, func(_ time.Time) tea.Msg {
+		return streamTickMsg{}
+	})
+}
+
 // modelsLoadedMsg signals that model scanning completed
 type modelsLoadedMsg struct {
 	models []chat.ModelEntry
@@ -147,6 +157,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tea.KeyMsg:
 		return m.handleKey(msg)
+
+	case streamTickMsg:
+		if m.streaming {
+			m.updateViewportContent()
+			return m, streamTickCmd()
+		}
+		return m, nil
 
 	case streamEventMsg:
 		return m.handleStreamEvent(chat.StreamEvent(msg))
@@ -295,6 +312,7 @@ func (m Model) handleStreamingKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			_ = config.SaveHistory(m.paths, m.history)
 		}
 		m.streaming = false
+		m.tokenCount = 0 // discard partial stream; don't pollute footer total
 		m.mode = ModeChat
 		m.textarea.Focus()
 		m.streamText = ""
@@ -585,11 +603,12 @@ func (m Model) sendMessage() (tea.Model, tea.Cmd) {
 
 	userMsg := config.DisplayMessage{
 		Message: config.Message{
-			ID:        fmt.Sprintf("msg_%d", len(m.messages)+1),
-			Role:      "user",
-			CreatedAt: time.Now(),
-			Text:      text,
-			ImagePath: m.attachedImage,
+			ID:          fmt.Sprintf("msg_%d", len(m.messages)+1),
+			Role:        "user",
+			CreatedAt:   time.Now(),
+			Text:        text,
+			ImagePath:   m.attachedImage,
+			InputTokens: countTokensApprox(text),
 		},
 	}
 	m.messages = append(m.messages, userMsg)
@@ -627,7 +646,7 @@ func (m Model) sendMessage() (tea.Model, tea.Cmd) {
 	m.streamCh = ch
 
 	m.updateViewportContent()
-	return m, waitForStreamEvent(ch)
+	return m, tea.Batch(waitForStreamEvent(ch), streamTickCmd())
 }
 
 func (m Model) handleStreamEvent(event chat.StreamEvent) (tea.Model, tea.Cmd) {
@@ -658,6 +677,7 @@ func (m Model) handleStreamEvent(event chat.StreamEvent) (tea.Model, tea.Cmd) {
 		m.messages = append(m.messages, assistantMsg)
 		m.session.Messages = m.extractSessionMessages()
 		m.totalTokens += m.tokenCount
+		m.tokenCount = 0 // flush so footer (totalTokens + tokenCount) doesn't double-count
 		m.streaming = false
 		m.mode = ModeChat
 		m.textarea.Focus()
@@ -699,6 +719,8 @@ func (m *Model) updateViewportContent() {
 			m.inThinking,
 			m.width,
 			m.streamStart,
+			m.tokenCount,
+			m.calcTokPerSec(),
 		))
 	}
 

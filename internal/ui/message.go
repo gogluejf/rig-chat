@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fmt"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -70,17 +71,24 @@ func renderHeader(msg config.DisplayMessage, width int) string {
 
 	var right []string
 	if msg.ImagePath != "" {
-		right = append(right, msg.ImagePath)
+		right = append(right, filepath.Base(msg.ImagePath))
 	}
-	if msg.TokensPerSecond > 0 {
-		right = append(right, fmt.Sprintf("%.1f tok/s", msg.TokensPerSecond))
-	}
-	if msg.ResponseTimeMs > 0 {
-		right = append(right, formatDuration(msg.ResponseTimeMs))
-	}
-	totalTok := msg.InputTokens + msg.OutputTokens
-	if totalTok > 0 {
-		right = append(right, fmt.Sprintf("%d tokens", totalTok))
+	if msg.Role == "user" {
+		// User messages: show input token estimate only.
+		if msg.InputTokens > 0 {
+			right = append(right, fmt.Sprintf("%d tokens", msg.InputTokens))
+		}
+	} else {
+		// Assistant messages: tok/s → response time → output tokens.
+		if msg.TokensPerSecond > 0 {
+			right = append(right, fmt.Sprintf("%.1f tok/s", msg.TokensPerSecond))
+		}
+		if msg.ResponseTimeMs > 0 {
+			right = append(right, formatDuration(msg.ResponseTimeMs))
+		}
+		if msg.OutputTokens > 0 {
+			right = append(right, fmt.Sprintf("%d tokens", msg.OutputTokens))
+		}
 	}
 
 	rightStr := strings.Join(right, "  ")
@@ -100,27 +108,24 @@ func renderHeader(msg config.DisplayMessage, width int) string {
 	return style.Width(width).Render("\n" + header + "\n")
 }
 
-// RenderStreamingMessage renders the in-progress streaming message
-func RenderStreamingMessage(text, thinkingText string, inThinking bool, width int, createdAt time.Time) string {
+// RenderStreamingMessage renders the in-progress streaming message.
+// tokenCount and tokPerSec are live values; tokPerSec should be 0 until the
+// first token arrives so the latency (pre-token wait) is excluded from the
+// speed calculation.
+func RenderStreamingMessage(text, thinkingText string, inThinking bool, width int, createdAt time.Time, tokenCount int, tokPerSec float64) string {
 	var b strings.Builder
-
 
 	bubbleWidth := width
 	if bubbleWidth < 20 {
 		bubbleWidth = 20
 	}
-
 	bodyWidth := bubbleWidth
-	if bodyWidth < 20 {
-		bodyWidth = 20
-	}
 
-	streamHeader := renderStreamingHeader(createdAt, bubbleWidth)
+	streamHeader := renderStreamingHeader(createdAt, tokenCount, tokPerSec, bubbleWidth)
 	b.WriteString(streamHeader)
 	b.WriteString("\n")
 
 	if inThinking && text == "" {
-		// Still in thinking phase, show spinner
 		b.WriteString(ThinkingLabelStyle.Render("  thinking..."))
 		b.WriteString("\n")
 	}
@@ -133,10 +138,34 @@ func RenderStreamingMessage(text, thinkingText string, inThinking bool, width in
 	return b.String()
 }
 
-func renderStreamingHeader(createdAt time.Time, width int) string {
+// renderStreamingHeader mirrors renderHeader visually:
+// timestamp on the left, [elapsed  tok/s  N tokens] on the right.
+// The elapsed timer starts from createdAt (before the first token) so the
+// pre-token latency is visible. tok/s is only shown once > 0 (caller ensures
+// it stays 0 until the first token arrives).
+func renderStreamingHeader(createdAt time.Time, tokenCount int, tokPerSec float64, width int) string {
 	leftStr := createdAt.Format("15:04:05")
-	
-	return AssistantHeaderStyle.Width(width).Render("\n" + leftStr + "\n")
+
+	// Order matches the completed-message header: tok/s → elapsed → tokens.
+	// tok/s is suppressed until > 0 so the latency phase shows only the timer.
+	var right []string
+	if tokPerSec > 0 {
+		right = append(right, fmt.Sprintf("%.1f tok/s", tokPerSec))
+	}
+	elapsed := time.Since(createdAt)
+	right = append(right, formatDuration(elapsed.Milliseconds()))
+	if tokenCount > 0 {
+		right = append(right, fmt.Sprintf("%d tokens", tokenCount))
+	}
+
+	rightStr := strings.Join(right, "  ")
+	gap := width - lipgloss.Width(leftStr) - lipgloss.Width(rightStr) - 2
+	if gap < 1 {
+		gap = 1
+	}
+
+	header := leftStr + strings.Repeat(" ", gap) + rightStr
+	return AssistantHeaderStyle.Width(width).Render("\n" + header + "\n")
 }
 
 func formatDuration(ms int64) string {

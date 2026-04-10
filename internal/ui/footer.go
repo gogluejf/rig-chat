@@ -45,15 +45,15 @@ func RenderFooter(data FooterData, width int) string {
 		if data.InThinking {
 			parts = append(parts, FooterKeyStyle.Render("ctrl+e")+FooterDimStyle.Render(" thinking"))
 		}
-		left = strings.Join(parts, FooterDimStyle.Render("  "))
-		right1 = FooterValueStyle.Render(fmt.Sprintf("%.1f tok/s", data.TokPerSec)) +
-			FooterDimStyle.Render("  "+data.Model)
+		left = " " + strings.Join(parts, FooterDimStyle.Render("  "))
+		right1 = FooterValueStyle.Render(fmt.Sprintf("%.1f tok/s", data.TokPerSec)) + FooterDimStyle.Render("  "+data.Model)
 	} else {
-		left = FooterKeyStyle.Render("/") + FooterDimStyle.Render("cmd") +
+		left = " " + FooterKeyStyle.Render("/") + FooterDimStyle.Render("cmd") +
 			FooterDimStyle.Render("  ") +
 			FooterKeyStyle.Render("ctrl+h") + FooterDimStyle.Render(" help")
 		right1 = FooterDimStyle.Render(data.Model)
 	}
+	
 
 	gap1 := width - lipgloss.Width(left) - lipgloss.Width(right1)
 	if gap1 < 1 {
