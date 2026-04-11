@@ -5,7 +5,7 @@
 # Each step prints ✓ (already done) or ↓/⚙ (action taken).
 #
 # What it does (5 steps):
-#   1. Go SDK     — downloads Go 1.24.2 to ~/go-sdk if missing
+#   1. Go SDK     — downloads Go 1.24.2 to /usr/local/go if missing
 #   2. PATH       — appends Go bin dirs to ~/.bashrc if not already there
 #   3. Config     — creates ${XDG_CONFIG_HOME:-~/.config}/rig-chat/ dirs + defaults
 #   4. Modules    — runs `go mod tidy` in repo root if go.sum is missing
@@ -26,7 +26,7 @@ BIN_DIR="${REPO_ROOT}/bin"
 
 GO_VERSION="1.24.2"
 GO_ARCHIVE="go${GO_VERSION}.linux-amd64.tar.gz"
-GO_SDK="${HOME}/go-sdk/go"
+GO_SDK="/usr/local/go"
 GO_BIN="${GO_SDK}/bin/go"
 BINARY="rig-chat"
 BINARY_PATH="${BIN_DIR}/${BINARY}"
@@ -61,9 +61,8 @@ if [[ -x "${GO_BIN}" ]]; then
 else
     echo -e "  ${CYAN}↓${RESET}  Downloading Go ${GO_VERSION}..."
     wget -q "https://go.dev/dl/${GO_ARCHIVE}" -O "/tmp/${GO_ARCHIVE}"
-    mkdir -p "${HOME}/go-sdk"
-    rm -rf "${GO_SDK}"
-    tar -C "${HOME}/go-sdk" -xzf "/tmp/${GO_ARCHIVE}"
+    sudo rm -rf "${GO_SDK}"
+    sudo tar -C /usr/local -xzf "/tmp/${GO_ARCHIVE}"
     rm -f "/tmp/${GO_ARCHIVE}"
     echo -e "  ${GREEN}✓${RESET}  Go ${GO_VERSION} installed ${DIM}→ ${GO_SDK}${RESET}"
 fi
@@ -72,11 +71,13 @@ fi
 # 2. PATH
 # ─────────────────────────────────────────────────────────────────────────────
 
-export PATH="${GO_SDK}/bin:${HOME}/go/bin:${PATH}"
 
-if ! grep -q 'go-sdk/go/bin' "${HOME}/.bashrc" 2>/dev/null; then
-    echo 'export PATH=$HOME/go-sdk/go/bin:$HOME/go/bin:$PATH' >> "${HOME}/.bashrc"
+if ! grep -q '/usr/local/go/bin' "${HOME}/.bashrc" 2>/dev/null; then
+    {
+        echo 'export PATH=/usr/local/go/bin:$HOME/go/bin:$PATH'
+    } >> "${HOME}/.bashrc"
     echo -e "  ${GREEN}✓${RESET}  PATH added to ${DIM}~/.bashrc${RESET}"
+    source ~/.bashrc
 else
     echo -e "  ${GREEN}✓${RESET}  PATH ${DIM}(already in ~/.bashrc)${RESET}"
 fi
