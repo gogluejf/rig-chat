@@ -393,7 +393,6 @@ func (m Model) handleStreamingKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-
 func (m Model) handlePickerKey(msg tea.KeyMsg, pickerType string) (tea.Model, tea.Cmd) {
 	switch {
 	case key.Matches(msg, keys.Escape), key.Matches(msg, keys.Cancel):

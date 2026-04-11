@@ -16,7 +16,7 @@ func NewPaths(configDir string) Paths {
 	return Paths{
 		Root:     configDir,
 		Sessions: filepath.Join(configDir, "sessions"),
-		Prompts:  filepath.Join(configDir, "prompts"),
+		Prompts:  filepath.Join(configDir, "sys-prompts"),
 	}
 }
 
