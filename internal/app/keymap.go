@@ -14,6 +14,10 @@ type keyMap struct {
 	Down           key.Binding
 	Escape         key.Binding
 	Tab            key.Binding
+	ScrollUp       key.Binding
+	ScrollDown     key.Binding
+	PageUp         key.Binding
+	PageDown       key.Binding
 }
 
 var keys = keyMap{
@@ -60,5 +64,21 @@ var keys = keyMap{
 	Tab: key.NewBinding(
 		key.WithKeys("tab"),
 		key.WithHelp("tab", "complete"),
+	),
+	ScrollUp: key.NewBinding(
+		key.WithKeys("shift+up"),
+		key.WithHelp("shift+↑", "scroll up"),
+	),
+	ScrollDown: key.NewBinding(
+		key.WithKeys("shift+down"),
+		key.WithHelp("shift+↓", "scroll down"),
+	),
+	PageUp: key.NewBinding(
+		key.WithKeys("pgup"),
+		key.WithHelp("pgup", "page up"),
+	),
+	PageDown: key.NewBinding(
+		key.WithKeys("pgdown"),
+		key.WithHelp("pgdown", "page down"),
 	),
 }

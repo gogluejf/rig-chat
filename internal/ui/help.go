@@ -16,8 +16,11 @@ func RenderHelp(width, height int) string {
   ` + FooterKeyStyle.Render("ctrl+s") + `         Save session
   ` + FooterKeyStyle.Render("ctrl+l") + `         Load session
   ` + FooterKeyStyle.Render("up/down") + `        Browse prompt history
+  ` + FooterKeyStyle.Render("shift+↑/↓") + `     Scroll chat (3 lines)
+  ` + FooterKeyStyle.Render("pgup/pgdn") + `      Scroll chat (full page)
+  ` + FooterKeyStyle.Render("scroll") + `         Mouse wheel scrolls chat
   ` + FooterKeyStyle.Render("/") + `              Open command palette
-  ` + FooterKeyStyle.Render("esc") + `            Close overlay`
+  ` + FooterKeyStyle.Render("esc") + `            Close overlay / dismiss palette`
 
 	commands := `
   Slash Commands

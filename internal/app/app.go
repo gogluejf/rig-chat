@@ -157,6 +157,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		return m.handleKey(msg)
 
+	case tea.MouseMsg:
+		switch msg.Button {
+		case tea.MouseButtonWheelUp:
+			m.viewport.LineUp(3)
+		case tea.MouseButtonWheelDown:
+			m.viewport.LineDown(3)
+		}
+		return m, nil
+
 	case streamTickMsg:
 		if m.streaming {
 			m.updateViewportContent()
@@ -279,6 +288,22 @@ func (m Model) handleChatKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		return m.sendMessage()
 
+	case key.Matches(msg, keys.ScrollUp):
+		m.viewport.LineUp(3)
+		return m, nil
+
+	case key.Matches(msg, keys.ScrollDown):
+		m.viewport.LineDown(3)
+		return m, nil
+
+	case key.Matches(msg, keys.PageUp):
+		m.viewport.ViewUp()
+		return m, nil
+
+	case key.Matches(msg, keys.PageDown):
+		m.viewport.ViewDown()
+		return m, nil
+
 	case key.Matches(msg, keys.Up):
 		if m.cmdPalette.Visible {
 			m.cmdPalette.MoveUp()
@@ -347,6 +372,22 @@ func (m Model) handleStreamingKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	case key.Matches(msg, keys.ExpandThinking):
 		// Could toggle live thinking visibility in the future
+		return m, nil
+
+	case key.Matches(msg, keys.ScrollUp):
+		m.viewport.LineUp(3)
+		return m, nil
+
+	case key.Matches(msg, keys.ScrollDown):
+		m.viewport.LineDown(3)
+		return m, nil
+
+	case key.Matches(msg, keys.PageUp):
+		m.viewport.ViewUp()
+		return m, nil
+
+	case key.Matches(msg, keys.PageDown):
+		m.viewport.ViewDown()
 		return m, nil
 	}
 	return m, nil
